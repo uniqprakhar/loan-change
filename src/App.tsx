@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { db } from "@broodle/data";
+import { useMemo, useState } from "react";
+import { BANK_OFFERS, TRANSFER_COSTS } from "./lib/bank-data";
 import { ArrowLeftRight, ShieldCheck, Calculator, Sparkles } from "lucide-react";
 import { LoanForm } from "./components/LoanForm";
 import { Results } from "./components/Results";
@@ -7,7 +7,7 @@ import { BankTable } from "./components/BankTable";
 import { BestTime } from "./components/BestTime";
 import { AdvisorChat } from "./components/AdvisorChat";
 import { breakEven, bestTimeToSwitch, compare, emi, formatCompact, monthsToYearsLabel } from "./lib/loan";
-import type { LoanState, BankOffer, TransferCostInfo } from "./lib/types";
+import type { LoanState } from "./lib/types";
 
 const DEFAULT_STATE: LoanState = {
   loanType: "home",
@@ -22,71 +22,19 @@ const DEFAULT_STATE: LoanState = {
 
 export default function App() {
   const [state, setState] = useState<LoanState>(DEFAULT_STATE);
-  const [offers, setOffers] = useState<BankOffer[]>([]);
-  const [costs, setCosts] = useState<TransferCostInfo[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
   const patch = (p: Partial<LoanState>) => setState((s) => ({ ...s, ...p }));
-
-  // Load bank rates + transfer cost norms from the built-in DB.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const [ratesRes, costsRes] = await Promise.all([
-          db.query("SELECT * FROM bank_rates ORDER BY loan_type, score_min, rate"),
-          db.query("SELECT * FROM transfer_costs"),
-        ]);
-        if (cancelled) return;
-        if (!ratesRes.ok) throw new Error(ratesRes.error?.message ?? "rate table unavailable");
-        const costRows = costsRes.ok ? costsRes.rows : [];
-        setCosts(
-          costRows.map((c) => ({
-            loanType: c.loan_type as TransferCostInfo["loanType"],
-            foreclosurePct: Number(c.foreclosure_pct),
-            foreclosureNote: c.foreclosure_note,
-            otherCharges: c.other_charges,
-          })),
-        );
-        const mapped: BankOffer[] = ratesRes.rows.map((r) => ({
-          id: r.id,
-          bankName: r.bank_name,
-          loanType: r.loan_type,
-          rate: Number(r.rate),
-          feePct: Number(r.processing_fee_pct),
-          feeMin: Number(r.processing_fee_min ?? 0),
-          feeMax: r.processing_fee_max !== null && r.processing_fee_max !== undefined ? Number(r.processing_fee_max) : null,
-          scoreMin: Number(r.score_min),
-          scoreMax: Number(r.score_max),
-          updatedAt: r.updated_at,
-          sourceUrl: r.source_url ?? null,
-          verifiedOn: r.verified_on ?? null,
-        }));
-        setOffers(mapped);
-        setError(null);
-      } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
+  const offers = BANK_OFFERS;
+  const costs = TRANSFER_COSTS;
+  const loading = false;
+  const error: string | null = null;
   const scoreMin = state.score >= 750 ? 750 : state.score >= 700 ? 700 : state.score >= 650 ? 650 : 0;
   const scoreMax = state.score >= 750 ? 900 : state.score >= 700 ? 749 : state.score >= 650 ? 699 : 649;
-
   const bandOffers = useMemo(
     () => offers.filter((o) => o.loanType === state.loanType && o.scoreMin === scoreMin && o.scoreMax === scoreMax),
     [offers, state.loanType, scoreMin, scoreMax],
   );
-
   const costInfo = costs.find((c) => c.loanType === state.loanType);
   const foreclosurePct = state.rateType === "fixed" ? 2 : (costInfo?.foreclosurePct ?? 0);
-
   const tenureMonths = Math.max(1, state.years * 12 + state.months);
   const bestOffer = useMemo(() => {
     if (bandOffers.length === 0) return null;
@@ -101,55 +49,33 @@ export default function App() {
         .sort((a, b) => b.net - a.net)[0] ?? null
     );
   }, [bandOffers, state.amount, state.rate, tenureMonths]);
-
   const newRate = bestOffer && bestOffer.newEmi < emi(state.amount, state.rate, tenureMonths) ? bestOffer.o.rate : null;
   const feeForBest = bestOffer?.fee ?? 0;
-
   const cmp = newRate !== null ? compare({ amount: state.amount, rate: state.rate, tenureMonths }, newRate) : null;
-  const be =
-    cmp !== null
-      ? breakEven(cmp, state.amount, feeForBest, foreclosurePct)
-      : null;
-
+  const be = cmp !== null ? breakEven(cmp, state.amount, feeForBest, foreclosurePct) : null;
   const bestTime = useMemo(
-    () =>
-      newRate !== null
-        ? bestTimeToSwitch(
-            { amount: state.amount, rate: state.rate, tenureMonths },
-            newRate,
-            feeForBest,
-          )
-        : null,
+    () => (newRate !== null ? bestTimeToSwitch({ amount: state.amount, rate: state.rate, tenureMonths }, newRate, feeForBest) : null),
     [state.amount, state.rate, tenureMonths, newRate, feeForBest],
   );
-
   const bestOfferSummary = bestOffer
-    ? `${bestOffer.o.bankName} @ ${bestOffer.o.rate.toFixed(2)}% (processing fee ≈ ${formatCompact(bestOffer.fee)})`
+    ? `${bestOffer.o.bankName} @ ${bestOffer.o.rate.toFixed(2)}% (processing fee)`
     : "no better rate in the table for this score band";
-
-  const fallbackNewRate = Math.max(0, state.rate - 0.5);
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-emerald-50/70 via-background to-background">
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
-        {/* Hero */}
         <header className="mb-10 text-center">
           <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-emerald-600/20 bg-emerald-50 px-3.5 py-1.5 text-xs font-medium text-emerald-700">
             <ShieldCheck className="h-3.5 w-3.5" />
-            RBI bars foreclosure charges on floating-rate loans to individuals — switching is nearly free
+            RBI bars foreclosure charges on floating-rate loans to individuals
           </div>
           <h1 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">
             Loan balance transfer, <span className="text-emerald-600">decoded</span>
           </h1>
           <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
-            Enter what you owe, your current rate and your credit score. We'll estimate how much you could save
-            by moving your loan to another bank — monthly, lifetime, and after every fee. Estimates only;
-            always verify with the bank. No sign-up, nothing stored.
+            Enter what you owe, your current rate and your credit score. Estimates only; always verify with the bank.
           </p>
         </header>
-
         <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
-          {/* Left column: form */}
           <div className="space-y-6">
             <section className="rounded-2xl border bg-card p-5 shadow-sm">
               <h2 className="font-display mb-4 flex items-center gap-2 text-base font-semibold">
@@ -159,71 +85,18 @@ export default function App() {
               <LoanForm state={state} onChange={patch} />
             </section>
           </div>
-
-          {/* Right column: results + banks + advisor */}
           <div className="space-y-6">
-            <Results
-              state={state}
-              newRate={newRate}
-              processingFee={feeForBest}
-              foreclosurePct={foreclosurePct}
-            />
-
-            <BankTable
-              offers={bandOffers}
-              loading={loading}
-              error={error}
-              state={state}
-              onPickBank={(o) => patch({ rate: o.rate, bankName: o.bankName })}
-            />
-
-            <BestTime
-              analysis={bestTime}
-              offeredRate={newRate}
-              currentRate={state.rate}
-              tenureMonths={tenureMonths}
-              loading={loading}
-            />
-
-            <AdvisorChat
-              state={state}
-              bestOfferSummary={bestOfferSummary}
-              newRate={newRate}
-              monthlySaving={cmp?.monthlySaving ?? null}
-              totalSaving={cmp?.totalInterestSaving ?? null}
-              transferCost={be?.transferCost ?? feeForBest}
-            />
-
-            {/* Fallback hint when DB is unavailable */}
-            {error && (
-              <p className="rounded-xl bg-amber-50 px-4 py-3 text-xs text-amber-800">
-                Bank rate table unavailable ({error}). Tip: if another bank quoted you a rate, reduce your
-                "current interest rate" to that rate and the savings above recompute instantly. For the demo
-                case — ₹30L at {state.rate.toFixed(2)}% → {(fallbackNewRate).toFixed(2)}% over{" "}
-                {monthsToYearsLabel(tenureMonths)} — savings recompute live as you type.
-              </p>
-            )}
+            <Results state={state} newRate={newRate} processingFee={feeForBest} foreclosurePct={foreclosurePct} />
+            <BankTable offers={bandOffers} loading={loading} error={error} state={state} onPickBank={(o) => patch({ rate: o.rate, bankName: o.bankName })} />
+            <BestTime analysis={bestTime} offeredRate={newRate} currentRate={state.rate} tenureMonths={tenureMonths} loading={loading} />
+            <AdvisorChat state={state} bestOfferSummary={bestOfferSummary} newRate={newRate} monthlySaving={cmp?.monthlySaving ?? null} totalSaving={cmp?.totalInterestSaving ?? null} transferCost={be?.transferCost ?? feeForBest} />
           </div>
         </div>
-
-        {/* How it works */}
         <section className="mt-12 grid gap-4 sm:grid-cols-3">
           {[
-            {
-              icon: ArrowLeftRight,
-              title: "What is a balance transfer?",
-              body: "Your new bank pays off the old loan; you repay the new bank at their (lower) rate. Your outstanding amount stays the same — only the interest math changes.",
-            },
-            {
-              icon: ShieldCheck,
-              title: "Why it's cheap in India",
-              body: "RBI has barred banks from charging foreclosure or prepayment on floating-rate loans to individual borrowers. Your only real cost is the new bank's processing fee (0.25%–2%, often capped).",
-            },
-            {
-              icon: Sparkles,
-              title: "When it's worth it",
-              body: "Roughly: a rate gap of 0.5% or more, at least 4–5 years left on the loan, and a net saving that clearly beats the one-time fee. The break-even card above does this math for you.",
-            },
+            { icon: ArrowLeftRight, title: "What is a balance transfer?", body: "Your new bank pays off the old loan; you repay the new bank at their (lower) rate." },
+            { icon: ShieldCheck, title: "Why it's cheap in India", body: "RBI has barred foreclosure charges on floating-rate loans to individuals. Main cost is the new bank processing fee." },
+            { icon: Sparkles, title: "When it's worth it", body: "Roughly: rate gap of 0.5% or more, 4-5 years left, and net saving clearly beats the fee." },
           ].map((c) => (
             <div key={c.title} className="rounded-2xl border bg-card p-5 shadow-sm">
               <c.icon className="h-5 w-5 text-emerald-600" />
@@ -231,39 +104,6 @@ export default function App() {
               <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{c.body}</p>
             </div>
           ))}
-        </section>
-
-        {/* Legal disclaimer */}
-        <section className="mt-10 rounded-2xl border bg-card p-5 shadow-sm sm:p-6">
-          <h2 className="font-display flex items-center gap-2 text-sm font-semibold">
-            <ShieldCheck className="h-4 w-4 text-emerald-600" />
-            Important information &amp; disclaimer
-          </h2>
-          <div className="mt-3 grid gap-x-8 gap-y-2.5 text-xs leading-relaxed text-muted-foreground sm:grid-cols-2">
-            <p>
-              <strong className="text-foreground">Not a lender or DSA.</strong> LoanSwitch is an independent
-              informational tool. We are not a bank, lender, DSA or agent, and we do not issue, arrange, or
-              guarantee loans of any kind.
-            </p>
-            <p>
-              <strong className="text-foreground">Not affiliated with any bank.</strong> Bank names shown are
-              trademarks of their respective owners, used here solely for identification. This site is not
-              affiliated with, sponsored by, or endorsed by any bank or the Reserve Bank of India.
-            </p>
-            <p>
-              <strong className="text-foreground">Estimates, not offers.</strong> All savings figures are
-              illustrative estimates from standard EMI math on rates maintained by us. They are not quotes,
-              approvals, or offers of credit, and actual terms depend on each bank's assessment.
-            </p>
-            <p>
-              <strong className="text-foreground">Verify before you act.</strong> Interest rates and charges
-              change frequently. Always confirm the applicable rate, fees and terms directly with the bank.
-              Nothing here is financial advice — consider speaking to a qualified advisor before switching.
-            </p>
-          </div>
-          <p className="mt-4 border-t pt-3 text-[11px] text-muted-foreground">
-            Nothing you enter is stored or shared. Calculations run in your browser using your own numbers.
-          </p>
         </section>
       </div>
     </div>
