@@ -1,143 +1,91 @@
 # loan-change
 
-A loan balance-transfer calculator — enter your current loan details and instantly see whether switching banks saves you money, how much, and when you'd break even on the switch costs.
+Should you move your loan to another bank? This tool gives you a clear, numbers-based answer in seconds.
 
-Supports **home**, **personal**, and **car** loans, with bank offers tiered by credit-score band.
+If you have a home, personal, or car loan, even a small drop in interest rate can save you lakhs over the remaining years. But banks advertise rates without telling you the full story — processing fees, foreclosure charges, and your credit score change what you actually save. loan-change does that math for you.
 
-> Built with React + Vite + TypeScript + Tailwind CSS.
+## What this tool does
 
-## What it does
+You enter your current loan details. It tells you:
 
-- **Loan input form** (`src/components/LoanForm.tsx`)
-  - Loan type: home / personal / car
-  - Outstanding principal (₹), current interest rate (%), current bank (optional)
-  - Remaining tenure (years + months)
-  - CIBIL score (300–900) with score-band indicator (excellent / good / fair / poor)
-  - Rate type: floating / fixed (fixed adds a foreclosure charge assumption)
-- **Savings results** (`src/components/Results.tsx`)
-  - Headline: total interest saved + per-month EMI reduction
-  - Side-by-side: current loan vs. best offer at same tenure
-  - Two modes: **Lower my EMI** (same tenure, smaller EMI) vs. **Finish years earlier** (keep old EMI, close early)
-  - Break-even: one-time switch cost (new-bank processing fee + old-bank foreclosure) ÷ monthly saving
-  - Balance-over-time SVG chart
-- **Bank comparison table** (`src/components/BankTable.tsx`)
-  - All offers in your loan-type + score band, ranked by net saving
-  - EMI, monthly/total saving, fee, and net saving per bank
-  - Highlights your current bank; click any offer to select it
-- **Best-time-to-switch hint** (`src/components/BestTime.tsx`)
-- **Advisor chat** (`src/components/AdvisorChat.tsx`) — Q&A over your current inputs
+- **Is switching worth it?** Yes or no, based on real numbers — not guesswork.
+- **How much will you actually save?** Total interest saved over your remaining tenure, after subtracting all one-time switch costs.
+- **How much less will you pay every month?** Your current EMI vs. the EMI at the better rate.
+- **Which bank offer is best for you?** A ranked list of offers filtered by your loan type and credit score.
+- **When will you recover the switch cost?** The break-even month — after that, every month's saving is pure profit.
+- **Should you pay less monthly or finish early?** Two choices for the same saving: lower EMI for the same tenure, or keep paying your current EMI and close the loan years earlier.
 
-## How the math works (`src/lib/loan.ts`)
+## Why this matters
 
-Pure functions, no dependencies:
+Most borrowers never check if they are overpaying because the comparison feels complicated:
 
-- **EMI (reducing balance):** `P·r·(1+r)^n / ((1+r)^n − 1)`, where `r = annualRate / 12 / 100`
-- **`amortize(input)`** — month-by-month schedule from today's outstanding balance
-- **`compare(input, newRate)`** — like-for-like comparison on the same remaining tenure
-- **`tenureModes(input, newRate)`** — returns both `lower-emi` and `shorter-tenure` options (shorter tenure solved via `n = −ln(1 − P·r/E) / ln(1+r)`)
-- **`breakEven(...)` / `bestTimeToSwitch(...)`** — cost-recovery helpers
-- Formatting: `formatINR`, `formatCompact`, `monthsToYearsLabel`, `groupINR`
+- Advertised rates look similar, but a 0.5% difference on a ₹30 lakh home loan with 10 years left can mean **₹1 lakh+ in extra interest**.
+- Switching is not free. The new bank charges a processing fee, and your old bank may charge a foreclosure fee. Many people switch for a lower rate and end up saving almost nothing after these costs.
+- The right offer depends on your **CIBIL score**. A person with a 780 score gets very different rates from someone with a 680 score — generic comparisons mislead.
+- Timing matters. Switching early in the loan saves far more than switching when only a few years are left.
 
-Score bands used to filter offers:
+This tool puts all of that together so you can decide with confidence instead of relying on a bank agent's word.
 
-| Score | Band |
-| --- | --- |
-| 750–900 | Excellent |
-| 700–749 | Good |
-| 650–699 | Fair |
-| < 650 | Poor |
+## How it works
 
-> Estimates only. Figures are indicative reducing-balance math on the rate you enter. Actual offers depend on the bank's assessment and are not guaranteed.
+### 1. Tell it about your current loan
 
-## Data source
+- Loan type: home, personal, or car
+- How much you still owe (outstanding principal)
+- Your current interest rate
+- How much time is left (years + months)
+- Your CIBIL score (300–900)
+- Whether your rate is floating or fixed, and your current bank (optional)
 
-Bank rates and transfer-cost norms are loaded at runtime from the built-in database (`@broodle/data`):
+### 2. It compares you against current bank offers
 
-```sql
-SELECT * FROM bank_rates ORDER BY loan_type, score_min, rate;
-SELECT * FROM transfer_costs;
-```
+The tool looks at bank offers matching your loan type and score band:
 
-Parsed into `BankOffer` / `TransferCostInfo` (see `src/lib/types.ts`). If the rate table is unavailable, the app shows an error state instead of silent zeros.
+- 750+ : Excellent
+- 700–749 : Good
+- 650–699 : Fair
+- Below 650 : Poor
 
-## Tech stack
+For each matching offer it calculates what your EMI and total interest would be at that lower rate, for the same remaining tenure.
 
-| Layer | Choice |
-| --- | --- |
-| UI | React 19, TypeScript |
-| Build | Vite 8 |
-| Styling | Tailwind CSS 4, `tailwind-merge`, `clsx`, `class-variance-authority` |
-| Icons | `lucide-react` |
-| Storage / PWA | `idb-keyval`, `vite-plugin-pwa` |
+### 3. It gives you the true saving, not just the rate difference
 
-## Project structure
+A lower rate alone is not the answer. The tool subtracts:
 
-```
-loan-change/
-├── index.html              # Vite entry, fonts (Leyend + Sora)
-├── vite.config.ts          # React + Tailwind plugins, `@` → ./src
-├── tsconfig.json
-├── package.json
-└── src/
-    ├── App.tsx             # State, DB load, best-offer + break-even wiring, layout
-    ├── main.tsx            # React root + error boundary + editor-preview guard
-    ├── index.css           # Tailwind + global styles
-    ├── lib/
-    │   ├── loan.ts         # EMI / amortisation / comparison math
-    │   ├── types.ts        # LoanState, BankOffer, TransferCostInfo
-    │   └── utils.ts        # `cn()` class helper
-    └── components/
-        ├── LoanForm.tsx    # Inputs + score band UI
-        ├── Results.tsx     # Savings, modes, break-even, chart
-        ├── BankTable.tsx   # Ranked offers table
-        ├── BestTime.tsx    # Switch-timing hint
-        ├── AdvisorChat.tsx # Chat over current loan inputs
-        └── ui.tsx          # Card / Pill primitives
-```
+- Processing fee charged by the new bank
+- Foreclosure charge from your old bank (if applicable)
 
-## Getting started
+Then it shows:
 
-**Prerequisites:** Node.js 18+ and npm.
+- Net lifetime saving
+- Monthly saving
+- Break-even in months (one-time cost ÷ monthly saving)
+- Best time to switch
+- A side-by-side view and a balance-over-time chart so you can see the gap
 
-```bash
-# 1. Clone
- git clone https://github.com/uniqprakhar/loan-change.git
- cd loan-change
+You can also ask follow-up questions in the built-in advisor chat — it answers based on the loan you just entered.
 
-# 2. Install
- npm install
+## Example
 
-# 3. Run locally
- npm run dev
+> You owe ₹30,00,000 on a home loan at 8.7% with 10 years left.
+> The best offer for your score is 8.0%.
+> The tool might show: ~₹1,00,000+ saved in interest, ~₹1,000 less per month, one-time switch cost of ~₹15,000–20,000, recovered in ~18 months — everything after that is profit. Or, keep the same EMI and finish ~1 year early.
 
-# 4. Production build
- npm run build
+*Numbers are illustrative. Your result depends on your actual inputs and live bank rates.*
 
-# 5. Preview the build
- npm run preview
-```
+## How to read your result
 
-## Scripts
+- **No better rate found:** Your current rate already matches the best offers for your profile. Switching right now would only add costs.
+- **Positive net saving + short break-even (a few months):** Strong case to switch.
+- **Positive saving but long break-even (close to your remaining tenure):** Think twice — you recover the cost very late.
+- **Lower EMI vs. finish early:** Same total benefit, different feel. Pick lower EMI if you want monthly relief, or shorter tenure if you want to be debt-free sooner.
 
-| Command | What it does |
-| --- | --- |
-| `npm run dev` | Start Vite dev server |
-| `npm run build` | Type-check (`tsc -b`) + Vite production build |
-| `npm run preview` | Preview the production build |
+## Good to know
 
-## Configuration notes
+- Estimates only. Calculations use standard reducing-balance EMI math on the rate you enter. Actual bank offers depend on income, property/vehicle, and the bank's final assessment.
+- Rates and fees change. Treat the built-in bank data as guidance and confirm the final offer letter before signing.
+- RBI rules bar foreclosure charges on floating-rate loans to individuals — the tool reflects a 0% foreclosure assumption for floating rates.
 
-- Path alias `@` → `./src` (see `vite.config.ts` + `tsconfig.json`).
-- `vite-plugin-pwa` is configured for installable/offline-capable builds.
-- Dev server runs with `host: true` and permissive hosts for container/preview environments — tighten for production if needed.
-- Default demo state in `App.tsx`: ₹30,00,000 home loan @ 8.7% for 10 years, score 780, floating rate.
+## Who is this for?
 
-## Contributing
-
-1. Fork the repo and create a feature branch (`git checkout -b feature/my-change`).
-2. Make your change with a focused commit.
-3. Open a pull request against `main`.
-
-## License
-
-No license specified yet. Add a `LICENSE` file if you want to open-source it (e.g. MIT).
+Anyone with an ongoing home, personal, or car loan in India who wonders: "Am I paying more interest than I need to?" If you have years left and your score has improved since you took the loan, this check is especially worth doing.
