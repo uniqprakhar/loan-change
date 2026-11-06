@@ -1,13 +1,14 @@
+import { useState } from "react";
 import { Home, User, Car, CreditCard, IndianRupee, Percent, CalendarClock, Building2 } from "lucide-react";
 import type { LoanState, } from "../lib/types";
 import type { LoanType } from "../lib/loan";
 import { LOAN_TYPE_LABEL, scoreBand, groupINR } from "../lib/loan";
 import { cn } from "../lib/utils";
 
-const TYPES: { value: LoanType; icon: typeof Home; range: string }[] = [
-  { value: "home", icon: Home, range: "8.1 – 9.4%" },
-  { value: "personal", icon: User, range: "10.7 – 13.5%" },
-  { value: "car", icon: Car, range: "9.0 – 9.4%" },
+const TYPES: { value: LoanType; icon: typeof Home }[] = [
+  { value: "home", icon: Home },
+  { value: "personal", icon: User },
+  { value: "car", icon: Car },
 ];
 
 interface Props {
@@ -19,9 +20,41 @@ export const LoanForm = ({ state, onChange }: Props) => {
   const band = scoreBand(state.score);
   const tenureTotal = state.years * 12 + state.months;
 
+  // Draft text for the rate box so typing "8.7" works keystroke by keystroke.
+  const [rateDraft, setRateDraft] = useState<string | null>(null);
+  const rateShown = rateDraft ?? (state.rate ? String(state.rate) : "");
+
   const amountText = (raw: string) => {
     const n = Number(raw.replace(/[^0-9.]/g, ""));
     onChange({ amount: isNaN(n) ? 0 : n });
+  };
+
+  const rateText = (raw: string) => {
+    // Keep only digits and one decimal point, e.g. "8." or "8.7".
+    let cleaned = raw.replace(/[^0-9.]/g, "");
+    const firstDot = cleaned.indexOf(".");
+    if (firstDot !== -1) {
+      cleaned = cleaned.slice(0, firstDot + 1) + cleaned.slice(firstDot + 1).replace(/\./g, "");
+    }
+    if (cleaned.length > 6) cleaned = cleaned.slice(0, 6);
+    setRateDraft(cleaned);
+    const n = Number(cleaned);
+    if (cleaned !== "" && cleaned !== "." && !isNaN(n)) {
+      onChange({ rate: Math.min(n, 30) });
+    } else if (cleaned === "") {
+      onChange({ rate: 0 });
+    }
+  };
+
+  const commitRate = () => {
+    const n = Number(rateShown);
+    if (rateShown === "" || rateShown === "." || isNaN(n) || n === 0) {
+      setRateDraft(null);
+      onChange({ rate: 8.7 });
+    } else {
+      setRateDraft(null);
+      onChange({ rate: Math.min(n, 30) });
+    }
   };
 
   return (
@@ -47,7 +80,6 @@ export const LoanForm = ({ state, onChange }: Props) => {
               >
                 <Icon className="h-4 w-4" />
                 {LOAN_TYPE_LABEL[t.value].replace(" Loan", "")}
-                <span className="text-[10px] font-normal opacity-70">{t.range}</span>
               </button>
             );
           })}
@@ -91,11 +123,9 @@ export const LoanForm = ({ state, onChange }: Props) => {
           <div className="relative">
             <input
               inputMode="decimal"
-              value={state.rate || ""}
-              onChange={(e) => {
-                const n = Number(e.target.value.replace(/[^0-9.]/g, ""));
-                onChange({ rate: isNaN(n) ? 0 : Math.min(n, 30) });
-              }}
+              value={rateShown}
+              onChange={(e) => rateText(e.target.value)}
+              onBlur={commitRate}
               placeholder="8.7"
               className="w-full rounded-xl border bg-card py-2.5 pl-3 pr-8 text-sm font-medium tabular-nums outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20"
             />
