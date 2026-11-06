@@ -24,6 +24,9 @@ export const LoanForm = ({ state, onChange }: Props) => {
   const [rateDraft, setRateDraft] = useState<string | null>(null);
   const rateShown = rateDraft ?? (state.rate ? String(state.rate) : "");
 
+  // Draft text for the credit-score box so typing works without the slider fighting it.
+  const [scoreDraft, setScoreDraft] = useState<string | null>(null);
+
   const amountText = (raw: string) => {
     const n = Number(raw.replace(/[^0-9.]/g, ""));
     onChange({ amount: isNaN(n) ? 0 : n });
@@ -197,8 +200,31 @@ export const LoanForm = ({ state, onChange }: Props) => {
       <div>
         <Label icon={<CreditCard className="h-3.5 w-3.5" />}>CIBIL / credit score</Label>
         <div className="rounded-xl border bg-card px-4 py-3">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <span className="font-display text-2xl font-semibold tabular-nums">{state.score}</span>
+            <input
+              inputMode="numeric"
+              aria-label="Type your credit score"
+              value={scoreDraft ?? String(state.score)}
+              onChange={(e) => {
+                const digits = e.target.value.replace(/[^0-9]/g, "").slice(0, 3);
+                setScoreDraft(digits);
+                const n = Number(digits);
+                if (digits !== "" && !isNaN(n)) onChange({ score: Math.min(900, Math.max(300, n)) });
+              }}
+              onBlur={() => {
+                const n = Number(scoreDraft);
+                if (scoreDraft === null || scoreDraft === "" || isNaN(n) || n < 300) {
+                  setScoreDraft(null);
+                  onChange({ score: 780 });
+                } else {
+                  setScoreDraft(null);
+                  onChange({ score: Math.min(900, Math.max(300, n)) });
+                }
+              }}
+              placeholder="780"
+              className="w-20 shrink-0 rounded-lg border bg-card px-2.5 py-1.5 text-right text-sm font-semibold tabular-nums outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20"
+            />
             <span
               className={cn(
                 "rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset",
@@ -217,7 +243,10 @@ export const LoanForm = ({ state, onChange }: Props) => {
             max={900}
             step={1}
             value={state.score}
-            onChange={(e) => onChange({ score: Number(e.target.value) })}
+            onChange={(e) => {
+              setScoreDraft(null);
+              onChange({ score: Number(e.target.value) });
+            }}
             className="mt-3 w-full accent-emerald-600"
           />
           <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">

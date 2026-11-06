@@ -4,8 +4,9 @@ import { ArrowLeftRight, ShieldCheck, Calculator, Sparkles } from "lucide-react"
 import { LoanForm } from "./components/LoanForm";
 import { Results } from "./components/Results";
 import { BankTable } from "./components/BankTable";
+import { BestTime } from "./components/BestTime";
 import { AdvisorChat } from "./components/AdvisorChat";
-import { breakEven, compare, emi, formatCompact, monthsToYearsLabel } from "./lib/loan";
+import { breakEven, bestTimeToSwitch, compare, emi, formatCompact, monthsToYearsLabel } from "./lib/loan";
 import type { LoanState, BankOffer, TransferCostInfo } from "./lib/types";
 
 const DEFAULT_STATE: LoanState = {
@@ -110,6 +111,18 @@ export default function App() {
       ? breakEven(cmp, state.amount, feeForBest, foreclosurePct)
       : null;
 
+  const bestTime = useMemo(
+    () =>
+      newRate !== null
+        ? bestTimeToSwitch(
+            { amount: state.amount, rate: state.rate, tenureMonths },
+            newRate,
+            feeForBest,
+          )
+        : null,
+    [state.amount, state.rate, tenureMonths, newRate, feeForBest],
+  );
+
   const bestOfferSummary = bestOffer
     ? `${bestOffer.o.bankName} @ ${bestOffer.o.rate.toFixed(2)}% (processing fee ≈ ${formatCompact(bestOffer.fee)})`
     : "no better rate in the table for this score band";
@@ -162,6 +175,14 @@ export default function App() {
               error={error}
               state={state}
               onPickBank={(o) => patch({ rate: o.rate, bankName: o.bankName })}
+            />
+
+            <BestTime
+              analysis={bestTime}
+              offeredRate={newRate}
+              currentRate={state.rate}
+              tenureMonths={tenureMonths}
+              loading={loading}
             />
 
             <AdvisorChat

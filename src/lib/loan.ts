@@ -253,3 +253,117 @@ export const LOAN_TYPE_LABEL: Record<LoanType, string> = {
   personal: "Personal Loan",
   car: "Car Loan",
 };
+
+// ── Best-time-to-switch analysis ──────────────────────────────────
+
+export interface SwitchYearAnalysis {
+  /** Year of the loan, 1-based (1 = now). */
+  year: number;
+  /** Expected balance (₹) at the start of that year. */
+  balanceAtYear: number;
+  /** Expected saving (₹, net of fee) if the transfer happens then. */
+  netSavingIfSwitched: number;
+  /** Absolute saving normalised per ₹1L of balance — comparable across years. */
+  savingPerLakh: number;
+  /** Verdict for this window. */
+  verdict: "best" | "good" | "fair" | "poor";
+}
+
+export interface BestTimeResult {
+  years: SwitchYearAnalysis[];
+  bestYear: number;
+  bestWindowLabel: string;
+  totalRemainingYears: number;
+  whyBest: string;
+  ruleOfThumb: string;
+}
+
+/**
+ * "When should I switch?" — projects the loan forward year by year and asks:
+ * if I transferred at the start of year Y instead of today, what would I save?
+ *
+ * Method (all deterministic, no mock data):
+ *  - Expected future balance: amortise today's loan month by month, take the
+ *    balance at the start of each year.
+ *  - Saving in each scenario: same offered rate gap (current rate − offered
+ *    rate), applied to the remaining tenure from that point, same one-time fee.
+ *  - Two effects compete: later transfers run on a SMALLER balance (smaller
+ *    absolute ₹ saving) for FEWER months, but they skip paying the fee early.
+ *    Earlier transfers harvest more interest months on a bigger balance.
+ *    Because the rate gap compounds on the outstanding balance, in almost all
+ *    realistic cases switching EARLIER yields more total saving — the analysis
+ *    quantifies exactly how much each year of waiting costs, and highlights
+ *    the best remaining window.
+ */
+export const bestTimeToSwitch = (
+  input: LoanInput,
+  offeredRate: number,
+  oneTimeFee: number,
+): BestTimeResult | null => {
+  const { amount, rate, tenureMonths } = input;
+  if (!(offeredRate < rate) || tenureMonths < 12 || amount <= 0) return null;
+
+  const sched = amortize(input).schedule;
+  const balanceAtMonth = (m: number): number =>
+    m <= 0 ? amount : m >= sched.length ? 0 : sched[m - 1].balance;
+
+  const savingIfSwitchedAtMonth = (startMonth: number): number => {
+    const balance = balanceAtMonth(startMonth);
+    const remaining = tenureMonths - startMonth;
+    if (balance <= 1000 || remaining < 6) return 0;
+    const c = compare({ amount: balance, rate, tenureMonths: remaining }, offeredRate);
+    return Math.max(0, c.totalInterestSaving - oneTimeFee);
+  };
+
+  const totalYears = Math.ceil(tenureMonths / 12);
+  const years: SwitchYearAnalysis[] = [];
+  for (let y = 1; y <= totalYears; y++) {
+    const startMonth = (y - 1) * 12;
+    if (tenureMonths - startMonth < 6) break;
+    const balanceAtYear = balanceAtMonth(startMonth);
+    const netSavingIfSwitched = savingIfSwitchedAtMonth(startMonth);
+    years.push({
+      year: y,
+      balanceAtYear,
+      netSavingIfSwitched,
+      savingPerLakh: (netSavingIfSwitched / Math.max(balanceAtYear, 1)) * 100_000,
+      verdict: "fair",
+    });
+  }
+  if (years.length === 0) return null;
+
+  const maxPerLakh = Math.max(...years.map((y) => y.savingPerLakh));
+  const topSaving = Math.max(...years.map((y) => y.netSavingIfSwitched));
+  for (const y of years) {
+    const ratio = maxPerLakh > 0 ? y.savingPerLakh / maxPerLakh : 0;
+    y.verdict =
+      ratio >= 0.97 ? "best" : ratio >= 0.85 ? "good" : ratio >= 0.5 ? "fair" : "poor";
+  }
+
+  // "Best" window = highest per-lakh harvest; tie-break to the earliest.
+  const bestYear = years.find((y) => y.verdict === "best")?.year ?? years[0].year;
+  const costOfWaitingOneYear = topSaving - (years[1]?.netSavingIfSwitched ?? topSaving);
+  const costOfWaitingLast = topSaving - (years[years.length - 1]?.netSavingIfSwitched ?? topSaving);
+
+  const gap = rate - offeredRate;
+  const whyBest =
+    `At a ${(gap * 100).toFixed(2)} pp rate gap, every ₹1 L of outstanding balance saves about ` +
+    `₹${Math.round(maxPerLakh).toLocaleString("en-IN")} over the rest of the loan. Your balance is ` +
+    `highest today and shrinks every year, and each year of waiting removes ` +
+    `${formatINR(Math.max(0, costOfWaitingOneYear))} of saving on average — so the earlier you lock ` +
+    `the lower rate, the more of the loan's life it works for you.`;
+
+  const ruleOfThumb =
+    costOfWaitingLast > 0
+      ? `Waiting until the final year would cost you roughly ${formatINR(costOfWaitingLast)} versus switching now. Practical window: once the remaining tenure drops below about 5 years, the absolute saving shrinks fast; below ~2 years the fee and paperwork usually eat the benefit. If you expect market rates to fall further, waiting costs little — but if today's offer already beats your rate by ${gap.toFixed(2)} pp or more, there is little reason to wait.`
+      : `In your case the saving stays broadly stable across the remaining years — you can switch whenever it's convenient, though earlier still nets slightly more.`;
+
+  return {
+    years,
+    bestYear,
+    bestWindowLabel: `Year ${bestYear} of the loan${bestYear === 1 ? " — right now" : ""}`,
+    totalRemainingYears: totalYears,
+    whyBest,
+    ruleOfThumb,
+  };
+};
