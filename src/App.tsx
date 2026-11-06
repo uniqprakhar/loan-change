@@ -25,7 +25,6 @@ export default function App() {
   const [costs, setCosts] = useState<TransferCostInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [ratesUpdatedAt, setRatesUpdatedAt] = useState<string | null>(null);
 
   const patch = (p: Partial<LoanState>) => setState((s) => ({ ...s, ...p }));
 
@@ -60,10 +59,10 @@ export default function App() {
           scoreMin: Number(r.score_min),
           scoreMax: Number(r.score_max),
           updatedAt: r.updated_at,
+          sourceUrl: r.source_url ?? null,
+          verifiedOn: r.verified_on ?? null,
         }));
         setOffers(mapped);
-        const stamps = ratesRes.rows.map((r) => r.updated_at).filter(Boolean).sort();
-        if (stamps.length > 0) setRatesUpdatedAt(stamps[stamps.length - 1]);
         setError(null);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
@@ -130,9 +129,9 @@ export default function App() {
             Loan balance transfer, <span className="text-emerald-600">decoded</span>
           </h1>
           <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
-            Enter what you owe, your current rate and your credit score. We'll show exactly how much you'd
-            save by moving your loan to another bank — monthly, lifetime, and after every fee. No sign-up,
-            nothing stored.
+            Enter what you owe, your current rate and your credit score. We'll estimate how much you could save
+            by moving your loan to another bank — monthly, lifetime, and after every fee. Estimates only;
+            always verify with the bank. No sign-up, nothing stored.
           </p>
         </header>
 
@@ -162,7 +161,6 @@ export default function App() {
               loading={loading}
               error={error}
               state={state}
-              updatedAt={ratesUpdatedAt}
               onPickBank={(o) => patch({ rate: o.rate, bankName: o.bankName })}
             />
 
@@ -214,14 +212,38 @@ export default function App() {
           ))}
         </section>
 
-        <footer className="mt-10 border-t pt-6 text-center text-[11px] leading-relaxed text-muted-foreground">
-          <p className="mx-auto max-w-3xl">
-            <strong>Disclaimer:</strong> LoanSwitch is an independent calculator. Rates shown are indicative,
-            compiled from public bank rate cards, and change frequently — always confirm the final rate and
-            charges with the bank. This tool does not provide financial advice and is not affiliated with any
-            bank or the Reserve Bank of India. Nothing you enter is stored or shared.
+        {/* Legal disclaimer */}
+        <section className="mt-10 rounded-2xl border bg-card p-5 shadow-sm sm:p-6">
+          <h2 className="font-display flex items-center gap-2 text-sm font-semibold">
+            <ShieldCheck className="h-4 w-4 text-emerald-600" />
+            Important information &amp; disclaimer
+          </h2>
+          <div className="mt-3 grid gap-x-8 gap-y-2.5 text-xs leading-relaxed text-muted-foreground sm:grid-cols-2">
+            <p>
+              <strong className="text-foreground">Not a lender or DSA.</strong> LoanSwitch is an independent
+              informational tool. We are not a bank, lender, DSA or agent, and we do not issue, arrange, or
+              guarantee loans of any kind.
+            </p>
+            <p>
+              <strong className="text-foreground">Not affiliated with any bank.</strong> Bank names shown are
+              trademarks of their respective owners, used here solely for identification. This site is not
+              affiliated with, sponsored by, or endorsed by any bank or the Reserve Bank of India.
+            </p>
+            <p>
+              <strong className="text-foreground">Estimates, not offers.</strong> All savings figures are
+              illustrative estimates from standard EMI math on rates maintained by us. They are not quotes,
+              approvals, or offers of credit, and actual terms depend on each bank's assessment.
+            </p>
+            <p>
+              <strong className="text-foreground">Verify before you act.</strong> Interest rates and charges
+              change frequently. Always confirm the applicable rate, fees and terms directly with the bank.
+              Nothing here is financial advice — consider speaking to a qualified advisor before switching.
+            </p>
+          </div>
+          <p className="mt-4 border-t pt-3 text-[11px] text-muted-foreground">
+            Nothing you enter is stored or shared. Calculations run in your browser using your own numbers.
           </p>
-        </footer>
+        </section>
       </div>
     </div>
   );

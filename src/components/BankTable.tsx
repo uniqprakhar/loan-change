@@ -10,7 +10,6 @@ interface Props {
   error: string | null;
   state: LoanState;
   onPickBank: (offer: BankOffer) => void;
-  updatedAt: string | null;
 }
 
 interface RankedOffer extends BankOffer {
@@ -22,7 +21,7 @@ interface RankedOffer extends BankOffer {
   isCurrent: boolean;
 }
 
-export const BankTable = ({ offers, loading, error, state, onPickBank, updatedAt }: Props) => {
+export const BankTable = ({ offers, loading, error, state, onPickBank }: Props) => {
   const tenureMonths = Math.max(1, state.years * 12 + state.months);
   const currentEmi = emi(state.amount, state.rate, tenureMonths);
 
@@ -58,7 +57,7 @@ export const BankTable = ({ offers, loading, error, state, onPickBank, updatedAt
         title={`Bank offers for you · ${state.loanType === "home" ? "Home" : state.loanType === "personal" ? "Personal" : "Car"} loan`}
         sub={
           offers.length > 0
-            ? `Ranked by net saving for a ${formatCompact(state.amount)} balance, ${tenureMonths} months left, score ${state.score}.`
+            ? `Ranked by net saving for a ${formatCompact(state.amount)} balance, ${tenureMonths} months left, score ${state.score}. Always verify the rate with the bank before deciding.`
             : "Matching banks against your profile."
         }
       />
@@ -115,10 +114,30 @@ export const BankTable = ({ offers, loading, error, state, onPickBank, updatedAt
                         </span>
                         <div>
                           <p className="font-medium leading-tight">{o.bankName}</p>
-                          <div className="mt-0.5 flex gap-1">
+                          <div className="mt-0.5 flex flex-wrap items-center gap-1">
                             {i === 0 && o.netSaving > 0 && <Pill tone="emerald" className="!px-1.5 !py-0 !text-[10px]">Best offer</Pill>}
                             {o.isCurrent && <Pill tone="amber" className="!px-1.5 !py-0 !text-[10px]">Your bank</Pill>}
                           </div>
+                          <p className="mt-1 text-[10px] leading-none text-muted-foreground">
+                            {o.verifiedOn
+                              ? `Rate checked ${new Date(o.verifiedOn).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}`
+                              : o.updatedAt
+                                ? `Last edited ${new Date(o.updatedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}`
+                                : null}
+                            {o.sourceUrl && (
+                              <>
+                                {" · "}
+                                <a
+                                  href={o.sourceUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="font-medium text-emerald-700 underline decoration-emerald-600/40 underline-offset-2 hover:decoration-emerald-600"
+                                >
+                                  Official rate page ↗
+                                </a>
+                              </>
+                            )}
+                          </p>
                         </div>
                       </div>
                     </td>
@@ -164,9 +183,10 @@ export const BankTable = ({ offers, loading, error, state, onPickBank, updatedAt
           </div>
         )}
         <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
-          *Same remaining tenure. Indicative rates sourced from public bank rate cards
-          {updatedAt ? `, last updated ${new Date(updatedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}` : ""}
-          . Your final offer depends on the bank's assessment. Edit any rate from the Database tab.
+          *Same remaining tenure. These are illustrative reference rates maintained by us — not live quotes from
+          any bank. Each row shows when it was last checked or edited; where we've verified a rate against the
+          bank's own page, a link is shown. Rates change frequently — always confirm the final rate, fees and
+          charges directly with the bank before deciding. Edit any rate from the Database tab.
         </p>
       </div>
     </Card>

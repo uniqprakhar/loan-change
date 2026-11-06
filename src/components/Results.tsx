@@ -37,7 +37,7 @@ export const Results = ({ state, newRate, processingFee, foreclosurePct }: Props
           {hasOffer && cmp ? (
             <>
               <p className="text-sm font-medium text-emerald-100">
-                Switch at {newRate!.toFixed(2)}% and you could save
+                Switch at {newRate!.toFixed(2)}% and estimated savings could be
               </p>
               <p className="font-display mt-1 text-4xl font-bold tracking-tight tabular-nums sm:text-5xl">
                 {formatCompact(Math.max(0, cmp.totalInterestSaving))}
@@ -195,8 +195,9 @@ export const Results = ({ state, newRate, processingFee, foreclosurePct }: Props
 
       <p className="flex items-start gap-1.5 px-1 text-[11px] leading-relaxed text-muted-foreground">
         <Info className="mt-0.5 h-3 w-3 shrink-0" />
-        Figures are indicative, computed from standard reducing-balance EMI math. Actual offers depend on the
-        bank's assessment, salary profile and property/vehicle category.
+        Estimates only — verify with the bank. Figures are indicative, computed from standard reducing-balance
+        EMI math on the rate you enter. Actual offers depend on the bank's assessment, salary profile and
+        property/vehicle category, and are not guaranteed.
       </p>
     </div>
   );

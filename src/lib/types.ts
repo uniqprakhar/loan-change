@@ -24,6 +24,8 @@ export interface BankRateRow {
   processing_fee_min: string;
   processing_fee_max: string | null;
   updated_at: string;
+  source_url: string | null;
+  verified_on: string | null;
 }
 
 /** Row of transfer_costs as returned by the DB. */
@@ -45,6 +47,8 @@ export interface BankOffer {
   scoreMin: number;
   scoreMax: number;
   updatedAt: string;
+  sourceUrl: string | null;
+  verifiedOn: string | null;
 }
 
 export interface TransferCostInfo {

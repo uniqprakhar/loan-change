@@ -58,7 +58,9 @@ INDIA / RBI CONTEXT (accurate as of 2024-25):
 - Fixed-rate loans may carry 2–4% foreclosure — flag this if rateType is fixed.
 - A balance transfer involves one hard credit inquiry; the small CIBIL dip (~5-10 points) recovers in a few months.
 - Process: get foreclosure/acceptance letter + statement of account from current bank → apply with new bank (KYC, income proofs, statements) → new bank disburses to old loan account → collect NOC and updated documents. Typically 2–4 weeks.
-- Rule of thumb: worth doing if (rate gap ≥ 0.5pp) AND (months remaining ≥ 5 years for home loans) AND (net saving after fees is clearly positive). For loans with < 2 years left, processing hassle usually outweighs tiny savings.`;
+- Rule of thumb: worth doing if (rate gap ≥ 0.5pp) AND (months remaining ≥ 5 years for home loans) AND (net saving after fees is clearly positive). For loans with < 2 years left, processing hassle usually outweighs tiny savings.
+
+IMPORTANT: All savings figures you quote are estimates, not offers. Never state a bank will approve a rate; say "you could save approximately" and remind the user to confirm the rate with the bank. This is not financial advice.`;
 
   const send = async (text: string) => {
     const q = text.trim();
@@ -114,7 +116,7 @@ INDIA / RBI CONTEXT (accurate as of 2024-25):
       <CardHead
         icon={<Bot className="h-4 w-4" />}
         title="Ask the balance-transfer advisor"
-        sub="Answers use your exact numbers and current RBI rules."
+        sub="Answers use your exact numbers and current RBI rules. AI estimates only — verify everything with the bank."
       />
       <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto p-5">
         {turns.length === 0 && (
@@ -194,6 +196,10 @@ INDIA / RBI CONTEXT (accurate as of 2024-25):
           <span className="hidden sm:inline">Ask</span>
         </button>
       </form>
+      <p className="border-t px-3 py-2 text-[10px] leading-relaxed text-muted-foreground">
+        Estimates only — the advisor's answers are informational and not financial advice. Always verify rates
+        and charges directly with the bank before deciding.
+      </p>
     </Card>
   );
 };
